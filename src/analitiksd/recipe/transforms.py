@@ -12,10 +12,11 @@ from analitiksd.recipe.models import (
     Metric,
     SortKey,
     SortOp,
+    Transform,
 )
 
 
-def apply_transforms(rows: list[dict[str, Any]], transforms: list[Any]) -> list[dict[str, Any]]:
+def apply_transforms(rows: list[dict[str, Any]], transforms: list[Transform]) -> list[dict[str, Any]]:
     """Применить конвейер трансформаций к строкам. Вход не мутируется."""
     result = [dict(r) for r in rows]
     group_keys: list[str] | None = None
