@@ -120,7 +120,10 @@ def _metric(grp: list[dict[str, Any]], m: Metric) -> Any:
 
 def _sort(rows: list[dict[str, Any]], keys: list[SortKey]) -> list[dict[str, Any]]:
     result = list(rows)
-    # стабильная многоключевая сортировка: применяем ключи в обратном порядке
+    # стабильная многоключевая сортировка: применяем ключи в обратном порядке.
+    # Кортеж (value is None, value) держит None в конце при asc; при desc reverse
+    # переворачивает и флаг, поэтому None оказывается сверху — поведение зависит
+    # от направления (осознанно для MVP; nulls-last можно зафиксировать позже).
     for k in reversed(keys):
         result.sort(
             key=lambda r, by=k.by: (r.get(by) is None, r.get(by)),

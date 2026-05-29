@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ToolCallStep(BaseModel):
+    # Единственный вид шага в MVP; поле type зарезервировано как дискриминатор
+    # на случай появления других видов шагов в будущих планах.
     type: Literal["tool_call"] = "tool_call"
     tool: str
     params: dict[str, Any] = Field(default_factory=dict)
