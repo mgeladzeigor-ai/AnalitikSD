@@ -69,8 +69,52 @@ def _filter(rows: list[dict[str, Any]], where: list[FilterCondition]) -> list[di
 
 
 # Заглушки — реализуются в следующих задачах:
-def _aggregate(rows, group_keys, metrics):  # noqa: ANN001
-    raise NotImplementedError
+def _aggregate(
+    rows: list[dict[str, Any]],
+    group_keys: list[str] | None,
+    metrics: list[Metric],
+) -> list[dict[str, Any]]:
+    groups: dict[tuple, list[dict[str, Any]]] = {}
+    order: list[tuple] = []
+    if group_keys:
+        for r in rows:
+            key = tuple(r.get(k) for k in group_keys)
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(r)
+    else:
+        order = [()]
+        groups = {(): rows}
+
+    out: list[dict[str, Any]] = []
+    for key in order:
+        grp = groups[key]
+        row: dict[str, Any] = {}
+        if group_keys:
+            for name, val in zip(group_keys, key):
+                row[name] = val
+        for m in metrics:
+            row[m.as_] = _metric(grp, m)
+        out.append(row)
+    return out
+
+
+def _metric(grp: list[dict[str, Any]], m: Metric) -> Any:
+    if m.fn == "count":
+        return len(grp)
+    vals = [r[m.field] for r in grp if r.get(m.field) is not None]
+    if not vals:
+        return 0 if m.fn == "sum" else None
+    if m.fn == "sum":
+        return sum(vals)
+    if m.fn == "avg":
+        return sum(vals) / len(vals)
+    if m.fn == "min":
+        return min(vals)
+    if m.fn == "max":
+        return max(vals)
+    raise ValueError(f"Unknown aggregate fn: {m.fn}")
 
 
 def _sort(rows, keys):  # noqa: ANN001

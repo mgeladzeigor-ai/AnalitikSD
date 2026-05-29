@@ -30,3 +30,35 @@ def test_filter_does_not_mutate_input():
     t = [FilterOp(op="filter", where=[{"field": "closed", "operator": "==", "value": "Y"}])]
     apply_transforms(ROWS, t)
     assert len(ROWS) == 3  # исходный список не изменён
+
+
+from analitiksd.recipe.models import AggregateOp, GroupByOp
+
+
+def test_group_by_with_count_and_sum():
+    t = [
+        GroupByOp(op="group_by", keys=["manager"]),
+        AggregateOp(op="aggregate", metrics=[
+            {"fn": "count", "as": "deals"},
+            {"fn": "sum", "field": "amount", "as": "total"}]),
+    ]
+    out = apply_transforms(ROWS, t)
+    assert out == [
+        {"manager": "A", "deals": 2, "total": 400},
+        {"manager": "B", "deals": 1, "total": 200},
+    ]
+
+
+def test_aggregate_without_group_by_is_single_group():
+    t = [AggregateOp(op="aggregate", metrics=[{"fn": "count", "as": "n"}])]
+    out = apply_transforms(ROWS, t)
+    assert out == [{"n": 3}]
+
+
+def test_aggregate_avg_min_max():
+    t = [AggregateOp(op="aggregate", metrics=[
+        {"fn": "avg", "field": "amount", "as": "avg_amount"},
+        {"fn": "min", "field": "amount", "as": "min_amount"},
+        {"fn": "max", "field": "amount", "as": "max_amount"}])]
+    out = apply_transforms(ROWS, t)
+    assert out == [{"avg_amount": 200, "min_amount": 100, "max_amount": 300}]
