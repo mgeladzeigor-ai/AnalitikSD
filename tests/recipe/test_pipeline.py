@@ -40,6 +40,18 @@ def test_param_substitution_into_steps():
     step = substitute(recipe.steps[0].model_dump(), values)
     assert step["params"]["filter"][">=CLOSEDATE"] == "2026-05-01"
     assert step["params"]["filter"]["<=CLOSEDATE"] == "2026-05-31"
+    # не-плейсхолдерное содержимое должно пережить подстановку без изменений
+    assert step["params"]["filter"]["CLOSED"] == "Y"
+    assert step["params"]["select"] == ["ID", "ASSIGNED_BY_ID", "OPPORTUNITY"]
+
+
+def test_param_override_flows_through_pipeline():
+    recipe = Recipe.model_validate(RECIPE_RAW)
+    overrides = {"period": {"from": "2026-06-01", "to": "2026-06-30"}}
+    values = resolve_params(PARAMS, overrides)
+    step = substitute(recipe.steps[0].model_dump(), values)
+    assert step["params"]["filter"][">=CLOSEDATE"] == "2026-06-01"
+    assert step["params"]["filter"]["<=CLOSEDATE"] == "2026-06-30"
 
 
 def test_full_pipeline_produces_expected_report():
@@ -56,3 +68,13 @@ def test_pipeline_is_deterministic():
     first = apply_transforms(SOURCE_ROWS, recipe.transform)
     second = apply_transforms(SOURCE_ROWS, recipe.transform)
     assert first == second
+
+
+def test_pipeline_independent_of_input_row_order():
+    # детерминизм сильнее тавтологии: результат не должен зависеть от порядка
+    # прихода строк из источника (group_by + сортировка дают стабильный отчёт).
+    recipe = Recipe.model_validate(RECIPE_RAW)
+    reordered = [SOURCE_ROWS[2], SOURCE_ROWS[0], SOURCE_ROWS[1]]
+    assert apply_transforms(reordered, recipe.transform) == apply_transforms(
+        SOURCE_ROWS, recipe.transform
+    )
