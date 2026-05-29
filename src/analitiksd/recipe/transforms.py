@@ -118,10 +118,42 @@ def _metric(grp: list[dict[str, Any]], m: Metric) -> Any:
     raise ValueError(f"Unknown aggregate fn: {m.fn}")
 
 
-# Заглушки — реализуются в следующих задачах:
-def _sort(rows, keys):  # noqa: ANN001
-    raise NotImplementedError
+def _sort(rows: list[dict[str, Any]], keys: list[SortKey]) -> list[dict[str, Any]]:
+    result = list(rows)
+    # стабильная многоключевая сортировка: применяем ключи в обратном порядке
+    for k in reversed(keys):
+        result.sort(
+            key=lambda r, by=k.by: (r.get(by) is None, r.get(by)),
+            reverse=(k.dir == "desc"),
+        )
+    return result
 
 
-def _computed(rows, t):  # noqa: ANN001
-    raise NotImplementedError
+def _operand(row: dict[str, Any], token: str) -> Any:
+    try:
+        num = float(token)
+        return int(num) if num.is_integer() else num
+    except ValueError:
+        return row.get(token)
+
+
+def _computed(rows: list[dict[str, Any]], t: ComputedOp) -> list[dict[str, Any]]:
+    for row in rows:
+        left = _operand(row, t.left)
+        right = _operand(row, t.right)
+        row[t.as_] = _arith(left, t.operator, right)
+    return rows
+
+
+def _arith(left: Any, operator: str, right: Any) -> Any:
+    if left is None or right is None:
+        return None
+    if operator == "+":
+        return left + right
+    if operator == "-":
+        return left - right
+    if operator == "*":
+        return left * right
+    if operator == "/":
+        return None if right == 0 else left / right
+    raise ValueError(f"Unknown operator: {operator}")

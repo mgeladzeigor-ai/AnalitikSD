@@ -1,6 +1,14 @@
 import pytest
 
-from analitiksd.recipe.models import AggregateOp, FilterOp, GroupByOp
+from analitiksd.recipe.models import (
+    AggregateOp,
+    ComputedOp,
+    FilterOp,
+    GroupByOp,
+    LimitOp,
+    SortKey,
+    SortOp,
+)
 from analitiksd.recipe.transforms import apply_transforms
 
 ROWS = [
@@ -68,3 +76,45 @@ def test_aggregate_non_count_without_field_raises():
     t = [AggregateOp(op="aggregate", metrics=[{"fn": "sum", "as": "total"}])]
     with pytest.raises(ValueError):
         apply_transforms(ROWS, t)
+
+
+def test_sort_desc_by_amount():
+    t = [SortOp(op="sort", sort=[{"by": "amount", "dir": "desc"}])]
+    out = apply_transforms(ROWS, t)
+    assert [r["amount"] for r in out] == [300, 200, 100]
+
+
+def test_sort_multi_key_stable():
+    rows = [
+        {"g": "A", "n": 2}, {"g": "B", "n": 1}, {"g": "A", "n": 1},
+    ]
+    t = [SortOp(op="sort", sort=[{"by": "g", "dir": "asc"}, {"by": "n", "dir": "asc"}])]
+    out = apply_transforms(rows, t)
+    assert out == [{"g": "A", "n": 1}, {"g": "A", "n": 2}, {"g": "B", "n": 1}]
+
+
+def test_computed_division():
+    rows = [{"a": 10, "b": 2}, {"a": 9, "b": 3}]
+    t = [ComputedOp(op="computed", **{"as": "ratio"}, left="a", operator="/", right="b")]
+    out = apply_transforms(rows, t)
+    assert [r["ratio"] for r in out] == [5, 3]
+
+
+def test_computed_division_by_zero_is_none():
+    rows = [{"a": 10, "b": 0}]
+    t = [ComputedOp(op="computed", **{"as": "ratio"}, left="a", operator="/", right="b")]
+    out = apply_transforms(rows, t)
+    assert out[0]["ratio"] is None
+
+
+def test_computed_with_numeric_literal():
+    rows = [{"a": 10}]
+    t = [ComputedOp(op="computed", **{"as": "doubled"}, left="a", operator="*", right="2")]
+    out = apply_transforms(rows, t)
+    assert out[0]["doubled"] == 20
+
+
+def test_limit():
+    t = [LimitOp(op="limit", n=2)]
+    out = apply_transforms(ROWS, t)
+    assert [r["id"] for r in out] == [1, 2]
