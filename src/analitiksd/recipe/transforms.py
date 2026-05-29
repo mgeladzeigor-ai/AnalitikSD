@@ -68,7 +68,6 @@ def _filter(rows: list[dict[str, Any]], where: list[FilterCondition]) -> list[di
     return [r for r in rows if ok(r)]
 
 
-# Заглушки — реализуются в следующих задачах:
 def _aggregate(
     rows: list[dict[str, Any]],
     group_keys: list[str] | None,
@@ -103,6 +102,8 @@ def _aggregate(
 def _metric(grp: list[dict[str, Any]], m: Metric) -> Any:
     if m.fn == "count":
         return len(grp)
+    if m.field is None:
+        raise ValueError(f"Aggregate fn '{m.fn}' requires a field")
     vals = [r[m.field] for r in grp if r.get(m.field) is not None]
     if not vals:
         return 0 if m.fn == "sum" else None
@@ -117,6 +118,7 @@ def _metric(grp: list[dict[str, Any]], m: Metric) -> Any:
     raise ValueError(f"Unknown aggregate fn: {m.fn}")
 
 
+# Заглушки — реализуются в следующих задачах:
 def _sort(rows, keys):  # noqa: ANN001
     raise NotImplementedError
 

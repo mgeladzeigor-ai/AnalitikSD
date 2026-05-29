@@ -1,4 +1,6 @@
-from analitiksd.recipe.models import FilterOp
+import pytest
+
+from analitiksd.recipe.models import AggregateOp, FilterOp, GroupByOp
 from analitiksd.recipe.transforms import apply_transforms
 
 ROWS = [
@@ -32,9 +34,6 @@ def test_filter_does_not_mutate_input():
     assert len(ROWS) == 3  # исходный список не изменён
 
 
-from analitiksd.recipe.models import AggregateOp, GroupByOp
-
-
 def test_group_by_with_count_and_sum():
     t = [
         GroupByOp(op="group_by", keys=["manager"]),
@@ -62,3 +61,10 @@ def test_aggregate_avg_min_max():
         {"fn": "max", "field": "amount", "as": "max_amount"}])]
     out = apply_transforms(ROWS, t)
     assert out == [{"avg_amount": 200, "min_amount": 100, "max_amount": 300}]
+
+
+def test_aggregate_non_count_without_field_raises():
+    # sum/avg/min/max требуют поле — иначе тихо вернулось бы 0/None (молча неверный отчёт)
+    t = [AggregateOp(op="aggregate", metrics=[{"fn": "sum", "as": "total"}])]
+    with pytest.raises(ValueError):
+        apply_transforms(ROWS, t)
