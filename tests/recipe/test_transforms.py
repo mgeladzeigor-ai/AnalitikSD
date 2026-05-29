@@ -6,7 +6,6 @@ from analitiksd.recipe.models import (
     FilterOp,
     GroupByOp,
     LimitOp,
-    SortKey,
     SortOp,
 )
 from analitiksd.recipe.transforms import apply_transforms
