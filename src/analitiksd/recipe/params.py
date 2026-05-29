@@ -28,7 +28,8 @@ def resolve_params(params: dict[str, Any], overrides: dict[str, Any] | None) -> 
 def substitute(obj: Any, values: dict[str, str]) -> Any:
     """Рекурсивно подставить плейсхолдеры {{key}} из values в структуру obj.
 
-    Если строка целиком равна одному плейсхолдеру, подставляется значение как есть.
+    Плейсхолдеры внутри строк заменяются строковым значением из values.
+    Нестроковые листья (числа, bool, None) возвращаются без изменений.
     Неизвестный ключ -> KeyError (тихо ничего не глотаем).
     """
     if isinstance(obj, dict):

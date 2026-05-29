@@ -18,6 +18,12 @@ def test_resolve_date_range_applies_override():
         "period.from": "2026-06-01", "period.to": "2026-06-30"}
 
 
+def test_resolve_raises_on_unsupported_param_type():
+    params = {"period": {"type": "weekday", "default": "mon"}}
+    with pytest.raises(ValueError):
+        resolve_params(params, overrides=None)
+
+
 def test_substitute_replaces_exact_placeholder_keeping_type():
     obj = {"filter": {">=CLOSEDATE": "{{period.from}}", "LIMIT": 50}}
     out = substitute(obj, {"period.from": "2026-05-01"})
