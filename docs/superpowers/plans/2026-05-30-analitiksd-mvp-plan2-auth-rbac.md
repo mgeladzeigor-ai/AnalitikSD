@@ -282,7 +282,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -292,7 +301,7 @@ from analitiksd.db.base import Base
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(
@@ -330,10 +339,15 @@ class UserRole(Base):
 
 class DataSource(Base):
     __tablename__ = "data_sources"
+    __table_args__ = (
+        CheckConstraint("type IN ('mcp', 'sql')", name="ck_data_sources_type"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(16))  # mcp | sql
-    config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    config: Mapped[dict] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
     roles: Mapped[list["Role"]] = relationship(
         secondary="role_sources", back_populates="sources"
     )
@@ -351,14 +365,20 @@ class RoleSource(Base):
 
 class ReportPerm(Base):
     __tablename__ = "report_perms"
+    __table_args__ = (
+        UniqueConstraint("report_id", "role_id", name="uq_report_perms_report_role"),
+        CheckConstraint("access IN ('view', 'edit')", name="ck_report_perms_access"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     # FK на reports появится миграцией в Плане 4; пока просто индексированный id
     report_id: Mapped[int] = mapped_column(index=True)
     role_id: Mapped[int] = mapped_column(
-        ForeignKey("roles.id", ondelete="CASCADE")
+        ForeignKey("roles.id", ondelete="CASCADE"), index=True
     )
     access: Mapped[str] = mapped_column(String(8))  # view | edit
 ```
+
+> Примечание: тесты `tests/test_models.py` дополнены проверками этих constraints/индексов и симметрии m2m-связей (`Role.sources`/`DataSource.roles`), уникальности `Role.name`/`DataSource.key` — см. итоговый код.
 
 - [ ] **Step 5: Создать пустой `src/analitiksd/db/__init__.py`**
 
@@ -460,12 +480,12 @@ def downgrade() -> None:
 # alembic/env.py
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from analitiksd.config import get_settings
 from analitiksd.db.base import Base
 from analitiksd.db import models  # noqa: F401  -- регистрирует таблицы в Base.metadata
 
@@ -473,13 +493,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Миграции зависят только от DATABASE_URL — не требуют JWT_SECRET и прочих
+# настроек приложения, поэтому читаем переменную напрямую, а не через get_settings().
+database_url = os.environ["DATABASE_URL"]
+config.set_main_option("sqlalchemy.url", database_url)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=get_settings().database_url,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -534,7 +557,7 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
     # email: уникальность задаётся UNIQUE-constraint на колонке (отдельный индекс не нужен)
 
