@@ -5,11 +5,20 @@ description = "AnalitikSD — система отчётности по данн�
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.6",
+    "fastapi>=0.110",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg2-binary>=2.9",
+    "pyjwt>=2.8",
+    "bcrypt>=4.1",
+    "email-validator>=2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "httpx>=0.27",
+    "uvicorn>=0.29",
 ]
 
 [build-system]
