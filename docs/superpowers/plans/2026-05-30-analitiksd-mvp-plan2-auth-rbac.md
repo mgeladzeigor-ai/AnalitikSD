@@ -890,12 +890,19 @@ def create_access_token(subject: str, *, expires_minutes: int | None = None) -> 
 
 
 def decode_access_token(token: str) -> str:
-    """Вернуть subject (sub) из валидного токена. Невалидный/просроченный -> jwt.PyJWTError."""
+    """Вернуть subject (sub) из валидного токена. Невалидный/просроченный -> jwt.PyJWTError.
+
+    Токен без claim `sub` тоже считается невалидным (jwt.InvalidTokenError),
+    чтобы весь поверхностный контракт ошибок оставался в рамках jwt.PyJWTError.
+    """
     settings = get_settings()
     payload = jwt.decode(
         token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
     )
-    return payload["sub"]
+    subject = payload.get("sub")
+    if subject is None:
+        raise jwt.InvalidTokenError("Token missing 'sub' claim")
+    return subject
 ```
 
 - [ ] **Step 4: Запустить — убедиться, что проходит**
