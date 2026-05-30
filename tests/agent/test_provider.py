@@ -1,4 +1,6 @@
 # tests/agent/test_provider.py
+import pytest
+
 from analitiksd.agent.catalog import BITRIX_CATALOG
 from analitiksd.agent.decision import CannotBuild
 from analitiksd.agent.provider import AnthropicProvider
@@ -47,6 +49,7 @@ def test_provider_parses_submit_recipe_into_recipe():
     assert isinstance(decision, Recipe)
     assert decision.source == "bitrix"
     assert client.messages.last_kwargs["tool_choice"] == {"type": "any"}
+    assert client.messages.last_kwargs["model"] == "claude-x"
 
 
 def test_provider_returns_cannotbuild_on_cannot_build_tool():
@@ -70,3 +73,21 @@ def test_provider_returns_cannotbuild_when_no_tool_use():
     provider = AnthropicProvider(client, "claude-x")
     decision = provider.build_recipe("вопрос", BITRIX_CATALOG)
     assert isinstance(decision, CannotBuild)
+
+
+class _RaisingMessages:
+    def create(self, **kwargs):
+        raise RuntimeError("api down")
+
+
+class _RaisingClient:
+    def __init__(self):
+        self.messages = _RaisingMessages()
+
+
+def test_provider_propagates_sdk_errors():
+    # API-ошибки (сеть/авторизация/лимит) НЕ глотаем в CannotBuild — пробрасываем,
+    # чтобы вызывающий слой (План 4) залогировал их как ошибку выполнения.
+    provider = AnthropicProvider(_RaisingClient(), "claude-x")
+    with pytest.raises(RuntimeError):
+        provider.build_recipe("вопрос", BITRIX_CATALOG)
