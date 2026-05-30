@@ -536,7 +536,7 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_users_email", "users", ["email"], unique=True)
+    # email: уникальность задаётся UNIQUE-constraint на колонке (отдельный индекс не нужен)
 
     op.create_table(
         "roles",
@@ -556,6 +556,7 @@ def upgrade() -> None:
         sa.Column("key", sa.String(64), nullable=False, unique=True),
         sa.Column("type", sa.String(16), nullable=False),
         sa.Column("config", postgresql.JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.CheckConstraint("type IN ('mcp', 'sql')", name="ck_data_sources_type"),
     )
 
     op.create_table(
@@ -570,17 +571,20 @@ def upgrade() -> None:
         sa.Column("report_id", sa.Integer, nullable=False),
         sa.Column("role_id", sa.Integer, sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
         sa.Column("access", sa.String(8), nullable=False),
+        sa.UniqueConstraint("report_id", "role_id", name="uq_report_perms_report_role"),
+        sa.CheckConstraint("access IN ('view', 'edit')", name="ck_report_perms_access"),
     )
     op.create_index("ix_report_perms_report_id", "report_perms", ["report_id"])
+    op.create_index("ix_report_perms_role_id", "report_perms", ["role_id"])
 
 
 def downgrade() -> None:
+    # индексы и constraints удаляются вместе со своими таблицами
     op.drop_table("report_perms")
     op.drop_table("role_sources")
     op.drop_table("data_sources")
     op.drop_table("user_roles")
     op.drop_table("roles")
-    op.drop_index("ix_users_email", table_name="users")
     op.drop_table("users")
 ```
 
@@ -1210,23 +1214,19 @@ class UserOut(BaseModel):
 # src/analitiksd/api/deps.py
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from analitiksd.auth.tokens import decode_access_token
-from analitiksd.db.base import get_sessionmaker
+from analitiksd.db.base import get_session
 from analitiksd.db.models import User
 
 COOKIE_NAME = "access_token"
 
-
-def get_db() -> Iterator[Session]:
-    sm = get_sessionmaker()
-    with sm() as session:
-        yield session
+# FastAPI-зависимость сессии БД — единая реализация в db.base.get_session.
+# Тесты переопределяют именно этот символ (app.dependency_overrides[get_db]).
+get_db = get_session
 
 
 def get_current_user(
