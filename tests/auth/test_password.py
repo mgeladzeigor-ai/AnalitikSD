@@ -1,0 +1,22 @@
+# tests/auth/test_password.py
+from analitiksd.auth.password import hash_password, verify_password
+
+
+def test_hash_differs_from_plaintext():
+    h = hash_password("secret123")
+    assert h != "secret123"
+    assert isinstance(h, str)
+
+
+def test_verify_accepts_correct_password():
+    h = hash_password("secret123")
+    assert verify_password("secret123", h) is True
+
+
+def test_verify_rejects_wrong_password():
+    h = hash_password("secret123")
+    assert verify_password("wrong", h) is False
+
+
+def test_hash_is_salted_unique():
+    assert hash_password("same") != hash_password("same")
