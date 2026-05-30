@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from analitiksd.auth.tokens import decode_access_token
 from analitiksd.db.base import get_session
 from analitiksd.db.models import User
+from analitiksd.rbac.queries import accessible_source_keys, report_access_levels
+from analitiksd.rbac.service import can_access_report, can_access_source
 
 COOKIE_NAME = "access_token"
 
@@ -33,3 +35,33 @@ def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive or unknown user")
     return user
+
+
+def require_source(source_key: str):
+    """Фабрика зависимости: пускает, только если у пользователя есть доступ к источнику."""
+
+    def _dep(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+        keys = accessible_source_keys(db, user.id)
+        if not can_access_source(keys, source_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No access to source '{source_key}'",
+            )
+        return user
+
+    return _dep
+
+
+def require_report(report_id: int, access: str):
+    """Фабрика зависимости: пускает, только если у пользователя есть нужный доступ к отчёту."""
+
+    def _dep(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+        levels = report_access_levels(db, user.id, report_id)
+        if not can_access_report(levels, access):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No '{access}' access to report {report_id}",
+            )
+        return user
+
+    return _dep
