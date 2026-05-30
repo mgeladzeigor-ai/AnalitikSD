@@ -1,6 +1,6 @@
 # tests/agent/test_catalog.py
 from analitiksd.agent.catalog import BITRIX_CATALOG, SourceCatalog, ToolSpec
-from analitiksd.agent.decision import CannotBuild
+from analitiksd.agent.decision import CannotBuild, RecipeDecision
 from analitiksd.recipe.models import Recipe
 
 
@@ -20,6 +20,16 @@ def test_cannot_build_carries_reason():
 
 
 def test_recipe_decision_accepts_recipe_or_cannotbuild():
-    from analitiksd.agent.decision import RecipeDecision  # noqa: F401
-    assert isinstance(CannotBuild("x"), CannotBuild)
-    assert Recipe is Recipe
+    # обе ветки RecipeDecision (Recipe | CannotBuild) — валидные значения
+    recipe = Recipe.model_validate(
+        {
+            "version": 1,
+            "source": "bitrix",
+            "steps": [{"type": "tool_call", "tool": "crm_deal_list", "params": {}}],
+            "transform": [],
+            "presentation": {"type": "table", "columns": ["ID"]},
+        }
+    )
+    decisions: list[RecipeDecision] = [recipe, CannotBuild("нет данных")]
+    assert isinstance(decisions[0], Recipe)
+    assert isinstance(decisions[1], CannotBuild)

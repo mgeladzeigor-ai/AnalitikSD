@@ -20,7 +20,11 @@ class SourceRunner(Protocol):
 
 
 class BitrixRestRunner:
-    """SourceRunner поверх входящего вебхука Битрикса (REST), с постраничной выборкой."""
+    """SourceRunner поверх входящего вебхука Битрикса (REST), с постраничной выборкой.
+
+    Внимание: переданный httpx.Client ДОЛЖЕН иметь конечный timeout — пагинация
+    делает несколько запросов в цикле, и timeout=None может подвесить выборку.
+    """
 
     def __init__(self, webhook_url: str, http: httpx.Client) -> None:
         self._webhook_url = webhook_url.rstrip("/")
