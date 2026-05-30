@@ -43,3 +43,47 @@ def test_fetch_http_error_propagates():
     step = ToolCallStep(type="tool_call", tool="crm_deal_list", params={})
     with pytest.raises(httpx.HTTPStatusError):
         runner.fetch(step)
+
+
+def test_fetch_single_page_no_next():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": [{"ID": "1"}], "total": 1})
+
+    runner = BitrixRestRunner("https://p.bitrix24.ru/rest/1/tok", _client(handler))
+    step = ToolCallStep(type="tool_call", tool="crm_deal_list", params={})
+    assert runner.fetch(step) == [{"ID": "1"}]
+
+
+def test_fetch_empty_result_false_returns_empty_list():
+    # Битрикс отдаёт result=false при нуле записей -> не падаем, возвращаем []
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": False, "total": 0})
+
+    runner = BitrixRestRunner("https://p.bitrix24.ru/rest/1/tok", _client(handler))
+    step = ToolCallStep(type="tool_call", tool="crm_deal_list", params={})
+    assert runner.fetch(step) == []
+
+
+def test_fetch_stops_on_non_increasing_next():
+    # кривой ответ с next=0 не должен зациклить раннер
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": [{"ID": "1"}], "next": 0})
+
+    runner = BitrixRestRunner("https://p.bitrix24.ru/rest/1/tok", _client(handler))
+    step = ToolCallStep(type="tool_call", tool="crm_deal_list", params={})
+    assert runner.fetch(step) == [{"ID": "1"}]
+
+
+def test_fetch_error_message_scrubs_webhook_token():
+    secret = "https://p.bitrix24.ru/rest/1/SUPERSECRETTOKEN"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": "boom"})
+
+    runner = BitrixRestRunner(
+        secret, httpx.Client(transport=httpx.MockTransport(handler), base_url=secret)
+    )
+    step = ToolCallStep(type="tool_call", tool="crm_deal_list", params={})
+    with pytest.raises(httpx.HTTPStatusError) as ei:
+        runner.fetch(step)
+    assert "SUPERSECRETTOKEN" not in str(ei.value)
