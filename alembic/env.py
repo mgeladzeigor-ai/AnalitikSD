@@ -1,12 +1,12 @@
 # alembic/env.py
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from analitiksd.config import get_settings
 from analitiksd.db.base import Base
 from analitiksd.db import models  # noqa: F401  -- регистрирует таблицы в Base.metadata
 
@@ -14,13 +14,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Миграции зависят только от DATABASE_URL — не требуют JWT_SECRET и прочих
+# настроек приложения, поэтому читаем переменную напрямую, а не через get_settings().
+database_url = os.environ["DATABASE_URL"]
+config.set_main_option("sqlalchemy.url", database_url)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=get_settings().database_url,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

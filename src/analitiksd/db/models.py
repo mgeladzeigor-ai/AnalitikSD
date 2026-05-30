@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -65,7 +66,9 @@ class DataSource(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(16))  # mcp | sql
-    config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    config: Mapped[dict] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
     roles: Mapped[list["Role"]] = relationship(
         secondary="role_sources", back_populates="sources"
     )
