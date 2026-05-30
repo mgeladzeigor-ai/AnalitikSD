@@ -35,3 +35,15 @@ def test_can_access_report(granted, required, expected):
 def test_unknown_required_level_raises():
     with pytest.raises(KeyError):
         can_access_report(["view"], "delete")
+
+
+def test_unknown_granted_level_never_grants_access():
+    # security-инвариант: неизвестный выданный уровень = ранг 0, доступ не даёт
+    assert can_access_report(["superadmin"], "view") is False
+    assert can_access_report(["superadmin", "delete"], "edit") is False
+
+
+def test_can_access_source_accepts_non_set_iterable():
+    # контракт Iterable: список (как из БД-выборки) работает так же, как set
+    assert can_access_source(["bitrix", "ut"], "bitrix") is True
+    assert can_access_source(["ut"], "bitrix") is False
