@@ -12,7 +12,7 @@
 
 | Тема | Решение | Почему |
 |------|---------|--------|
-| Таблицы | `reports` + `report_runs` (Alembic-миграция `0002`); той же миграцией — FK `report_perms.report_id → reports.id` (заглушка из Плана 2) | Завершает модель данных спеки (раздел 6) |
+| Таблицы | `reports` + `report_runs` (Alembic-миграция `0002`). FK `report_perms.report_id → reports.id` **отложен** в отдельную задачу (его добавление сломало бы RBAC-тесты Плана 2 с синтетическими `report_id`; функционально для MVP не нужен) | Завершает модель данных спеки (раздел 6); FK — позже |
 | RBAC по отчёту | Новая зависимость `require_report_access(access)`, читает `report_id` **из пути**; доступ = (владелец) **ИЛИ** (роль пользователя имеет `report_perm` нужного уровня) | Закрывает IDOR-замечание ревью Плана 2 (там id был константой); владелец всегда видит свой отчёт без авто-выдачи прав |
 | Инъекция агента/раннера | FastAPI-зависимости `get_agent_service` / `get_source_runner` строят реальные Anthropic/Битрикс из настроек; в тестах подменяются моками через `app.dependency_overrides` | Ядро (Планы 1/3) тестируется без внешних систем |
 | Обновление | `/reports/{id}/refresh` берёт сохранённый рецепт + params, зовёт `execute_recipe` (Плана 3) **без LLM**; пишет `report_run` | Гарантия детерминизма спеки: «та же логика, свежие данные» |
@@ -44,7 +44,7 @@ reports      (id, name, description, owner_id FK users, source, recipe jsonb,
 report_runs  (id, report_id FK reports ON DELETE CASCADE, started_at, finished_at,
               status[ok|error], row_count int|null, result jsonb|null, error text|null,
               triggered_by FK users|null)
-+ FK: report_perms.report_id -> reports.id (ON DELETE CASCADE)
+# FK report_perms.report_id -> reports.id — отложен (см. таблицу решений выше)
 ```
 
 ## 5. Поток данных
