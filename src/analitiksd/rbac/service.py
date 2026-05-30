@@ -5,6 +5,10 @@ from collections.abc import Iterable
 
 _ACCESS_RANK = {"view": 1, "edit": 2}
 
+# Публичный набор допустимых уровней доступа — единый источник правды
+# (например, для валидации параметров фабрик зависимостей на старте приложения).
+ACCESS_LEVELS = frozenset(_ACCESS_RANK)
+
 
 def can_access_source(accessible_source_keys: Iterable[str], source_key: str) -> bool:
     """True, если ключ источника есть среди доступных ролям пользователя."""

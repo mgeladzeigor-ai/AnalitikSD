@@ -65,3 +65,22 @@ def test_report_forbidden_without_grant(client, db_session):
     _login(client, db_session, report_access=None)
     r = client.get("/demo/report/5")
     assert r.status_code == 403
+
+
+def test_source_route_requires_auth(client):
+    # без cookie — 401 (require_source наследует аутентификацию get_current_user)
+    r = client.get("/demo/source/bitrix")
+    assert r.status_code == 401
+
+
+def test_report_route_requires_auth(client):
+    r = client.get("/demo/report/5")
+    assert r.status_code == 401
+
+
+def test_require_report_rejects_unknown_access_level():
+    # неизвестный уровень -> ошибка на этапе создания зависимости, не 500 в рантайме
+    from analitiksd.api.deps import require_report
+
+    with pytest.raises(ValueError):
+        require_report(5, "superadmin")
