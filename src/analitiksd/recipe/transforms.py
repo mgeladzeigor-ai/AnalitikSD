@@ -3,11 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# Числовой литерал в computed — только целое/десятичное (опц. знак).
-# НЕ принимаем inf/nan/научную нотацию: inf/nan ломают детерминизм (nan != nan),
-# а неоднозначные токены не должны молча подменять имя поля числом.
-_NUMERIC_LITERAL = re.compile(r"^-?\d+(\.\d+)?$")
-
 from analitiksd.recipe.models import (
     AggregateOp,
     ComputedOp,
@@ -20,6 +15,11 @@ from analitiksd.recipe.models import (
     SortOp,
     Transform,
 )
+
+# Числовой литерал в computed — только целое/десятичное (опц. знак).
+# НЕ принимаем inf/nan/научную нотацию: inf/nan ломают детерминизм (nan != nan),
+# а неоднозначные токены не должны молча подменять имя поля числом.
+_NUMERIC_LITERAL = re.compile(r"^-?\d+(\.\d+)?$")
 
 
 def apply_transforms(rows: list[dict[str, Any]], transforms: list[Transform]) -> list[dict[str, Any]]:
