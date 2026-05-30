@@ -62,7 +62,7 @@ def test_login_sets_cookie_and_me_returns_profile(client, db_session):
     _make_user(db_session)
     r = client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
     assert r.status_code == 200
-    assert client.cookies.get("access_token")
+    assert client.cookies.get("access_token") is not None
     me = client.get("/auth/me")
     assert me.status_code == 200
     body = me.json()
@@ -79,6 +79,12 @@ def test_login_wrong_password_401(client, db_session):
 def test_login_inactive_user_401(client, db_session):
     _make_user(db_session, email="i@e.com", active=False)
     r = client.post("/auth/login", json={"email": "i@e.com", "password": "pw"})
+    assert r.status_code == 401
+
+
+def test_login_unknown_email_401(client, db_session):
+    # незарегистрированный email -> тот же 401 (без утечки причины)
+    r = client.post("/auth/login", json={"email": "nobody@e.com", "password": "pw"})
     assert r.status_code == 401
 
 
