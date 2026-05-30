@@ -10,6 +10,7 @@ from analitiksd.agent.service import AgentService
 from analitiksd.api.deps import get_current_user, get_db
 from analitiksd.config import get_settings
 from analitiksd.db.models import Report, User
+from analitiksd.rbac.service import ACCESS_LEVELS
 from analitiksd.reports import service
 from analitiksd.source.runner import BitrixRestRunner
 
@@ -20,7 +21,11 @@ def require_report_access(access: str):
     """Фабрика зависимости: report_id берётся ИЗ ПУТИ; нет доступа/нет отчёта -> 404.
 
     404 (а не 403) для чужого отчёта — не раскрываем существование.
+    Уровень access проверяется сразу (на старте): неизвестное значение -> ValueError
+    при регистрации маршрута, а не KeyError/500 на первом запросе.
     """
+    if access not in ACCESS_LEVELS:
+        raise ValueError(f"Unknown access level: {access!r}")
 
     def _dep(
         report_id: int,

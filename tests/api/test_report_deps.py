@@ -64,3 +64,9 @@ def test_missing_report_404(db_session):
     with TestClient(app) as client:
         _login_cookie(client, user.id)
         assert client.get("/r/999999").status_code == 404
+
+
+def test_require_report_access_rejects_unknown_level():
+    import pytest
+    with pytest.raises(ValueError):
+        require_report_access("bogus")
