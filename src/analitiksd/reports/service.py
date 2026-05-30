@@ -1,12 +1,18 @@
 # src/analitiksd/reports/service.py
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from analitiksd.db.models import Report, ReportPerm, ReportRun, UserRole
 from analitiksd.rbac.queries import report_access_levels
 from analitiksd.rbac.service import can_access_report
+from analitiksd.recipe.models import Recipe
+from analitiksd.recipe.params import resolve_params
+from analitiksd.source.executor import execute_recipe
+from analitiksd.source.runner import SourceRunner
 
 
 def create_report(
@@ -70,3 +76,35 @@ def latest_ok_run(session: Session, report_id: int) -> ReportRun | None:
         select(ReportRun).where(ReportRun.report_id == report_id, ReportRun.status == "ok")
         .order_by(ReportRun.id.desc()).limit(1)
     ).scalar_one_or_none()
+
+
+def refresh_report(
+    session: Session,
+    report: Report,
+    runner: SourceRunner,
+    *,
+    triggered_by: int | None,
+    overrides: dict | None = None,
+) -> ReportRun:
+    """Детерминированно обновить отчёт: исполнить рецепт без LLM, записать report_run.
+
+    Ошибка исполнения (источник недоступен и т.п.) -> status=error с текстом;
+    прошлый успешный результат остаётся (отдельной строкой run, не затирается).
+    """
+    run = ReportRun(report_id=report.id, status="ok", triggered_by=triggered_by)
+    try:
+        recipe = Recipe.model_validate(report.recipe)
+        values = resolve_params(report.params, overrides) if report.params else {}
+        rows = execute_recipe(recipe, runner, values=values)
+        run.status = "ok"
+        run.result = {"rows": rows}
+        run.row_count = len(rows)
+    except Exception as exc:  # noqa: BLE001 — граница записи ошибок выполнения (не «тихо»)
+        run.status = "error"
+        run.error = str(exc)
+        run.result = None
+        run.row_count = None
+    run.finished_at = datetime.now(timezone.utc)
+    session.add(run)
+    session.flush()
+    return run

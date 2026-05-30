@@ -70,3 +70,42 @@ def test_latest_ok_run_and_latest_run(db):
     db.flush()
     assert service.latest_run(db, report.id).status == "error"
     assert service.latest_ok_run(db, report.id).row_count == 2
+
+
+class FakeRunner:
+    def __init__(self, rows=None, error=None):
+        self.rows = rows or []
+        self.error = error
+        self.calls = 0
+
+    def fetch(self, step):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.rows
+
+
+def test_refresh_records_ok_run(db):
+    owner = _user(db, "o5@x")
+    report = service.create_report(db, owner_id=owner.id, name="R", description="",
+                                   source="bitrix", recipe=RECIPE, params={})
+    runner = FakeRunner(rows=[{"ID": 1}, {"ID": 2}])
+    run = service.refresh_report(db, report, runner, triggered_by=owner.id)
+    assert run.status == "ok"
+    assert run.row_count == 2
+    assert run.result == {"rows": [{"ID": 1}, {"ID": 2}]}
+    assert run.finished_at is not None
+
+
+def test_refresh_records_error_and_keeps_last_ok(db):
+    owner = _user(db, "o6@x")
+    report = service.create_report(db, owner_id=owner.id, name="R", description="",
+                                   source="bitrix", recipe=RECIPE, params={})
+    ok = service.refresh_report(db, report, FakeRunner(rows=[{"ID": 1}]), triggered_by=owner.id)
+    bad = service.refresh_report(db, report, FakeRunner(error=RuntimeError("source down")), triggered_by=owner.id)
+    assert ok.status == "ok"
+    assert bad.status == "error"
+    assert "source down" in bad.error
+    # последний успешный результат не затёрт
+    assert service.latest_ok_run(db, report.id).id == ok.id
+    assert service.latest_run(db, report.id).id == bad.id
