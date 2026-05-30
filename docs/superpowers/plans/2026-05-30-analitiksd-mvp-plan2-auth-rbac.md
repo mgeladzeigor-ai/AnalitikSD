@@ -985,6 +985,10 @@ from collections.abc import Iterable
 
 _ACCESS_RANK = {"view": 1, "edit": 2}
 
+# Публичный набор допустимых уровней доступа — единый источник правды
+# (например, для валидации параметров фабрик зависимостей на старте приложения).
+ACCESS_LEVELS = frozenset(_ACCESS_RANK)
+
 
 def can_access_source(accessible_source_keys: Iterable[str], source_key: str) -> bool:
     """True, если ключ источника есть среди доступных ролям пользователя."""
@@ -1591,7 +1595,7 @@ Expected: FAIL (нет маршрутов `/demo/...`).
 
 ```python
 from analitiksd.rbac.queries import accessible_source_keys, report_access_levels
-from analitiksd.rbac.service import can_access_report, can_access_source
+from analitiksd.rbac.service import ACCESS_LEVELS, can_access_report, can_access_source
 
 
 def require_source(source_key: str):
@@ -1610,7 +1614,13 @@ def require_source(source_key: str):
 
 
 def require_report(report_id: int, access: str):
-    """Фабрика зависимости: пускает, только если у пользователя есть нужный доступ к отчёту."""
+    """Фабрика зависимости: пускает, только если у пользователя есть нужный доступ к отчёту.
+
+    Уровень access проверяется сразу (на старте приложения): неизвестное значение
+    -> ValueError при регистрации маршрута, а не KeyError/500 на первом запросе.
+    """
+    if access not in ACCESS_LEVELS:
+        raise ValueError(f"Unknown access level: {access!r}")
 
     def _dep(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
         levels = report_access_levels(db, user.id, report_id)
