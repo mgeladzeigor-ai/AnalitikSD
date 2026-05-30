@@ -35,3 +35,11 @@ def test_missing_sub_claim_raises(monkeypatch):
     token = jwt.encode({"foo": "bar"}, TEST_SECRET, algorithm="HS256")
     with pytest.raises(jwt.PyJWTError):
         decode_access_token(token)
+
+
+def test_missing_exp_claim_raises(monkeypatch):
+    # токен без exp не должен приниматься как «вечный»
+    monkeypatch.setenv("JWT_SECRET", TEST_SECRET)
+    token = jwt.encode({"sub": "1"}, TEST_SECRET, algorithm="HS256")
+    with pytest.raises(jwt.PyJWTError):
+        decode_access_token(token)

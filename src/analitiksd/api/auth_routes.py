@@ -4,6 +4,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
+from analitiksd.api.csrf import (
+    CSRF_COOKIE_NAME,
+    generate_csrf_token,
+    require_csrf,
+    set_csrf_cookie,
+)
 from analitiksd.api.deps import COOKIE_NAME, get_current_user, get_db
 from analitiksd.api.schemas import LoginRequest, UserOut
 from analitiksd.auth.service import authenticate_user, role_names
@@ -23,20 +29,31 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
+    settings = get_settings()
+    max_age = settings.jwt_expire_minutes * 60
     token = create_access_token(str(user.id))
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
+        secure=settings.cookie_secure,
         samesite="lax",
-        max_age=get_settings().jwt_expire_minutes * 60,
+        max_age=max_age,
+    )
+    # CSRF-токен (double-submit): живёт столько же, сколько сессия.
+    set_csrf_cookie(
+        response, generate_csrf_token(), secure=settings.cookie_secure, max_age=max_age
     )
     return {"status": "ok"}
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, str]:
-    response.delete_cookie(key=COOKIE_NAME)
+def logout(response: Response, _: None = Depends(require_csrf)) -> dict[str, str]:
+    # Аутентификация НЕ требуется: пользователь должен мочь сбросить
+    # просроченную/застрявшую cookie. От CSRF защищает double-submit-токен.
+    secure = get_settings().cookie_secure
+    response.delete_cookie(key=COOKIE_NAME, secure=secure, httponly=True, samesite="lax")
+    response.delete_cookie(key=CSRF_COOKIE_NAME, secure=secure, samesite="lax")
     return {"status": "ok"}
 
 

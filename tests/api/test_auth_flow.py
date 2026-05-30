@@ -88,10 +88,82 @@ def test_login_unknown_email_401(client, db_session):
     assert r.status_code == 401
 
 
+def test_login_overlong_password_rejected(client, db_session):
+    # слишком длинный пароль отвергается валидацией (422), не доходит до bcrypt
+    r = client.post(
+        "/auth/login", json={"email": "u@e.com", "password": "a" * 1000}
+    )
+    assert r.status_code == 422
+
+
 def test_logout_clears_cookie(client, db_session):
     _make_user(db_session)
     client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
-    r = client.post("/auth/logout")
+    csrf = client.cookies.get("csrf_token")
+    r = client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200
     me = client.get("/auth/me")
     assert me.status_code == 401
+
+
+# --- Безопасность cookie: флаг Secure управляется настройкой COOKIE_SECURE ---
+
+
+def test_login_cookie_secure_flag_honored(client, db_session, monkeypatch):
+    _make_user(db_session)
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    r = client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    assert r.status_code == 200
+    access = next(
+        c for c in r.headers.get_list("set-cookie") if c.startswith("access_token=")
+    )
+    assert "Secure" in access
+
+
+def test_login_cookie_not_secure_by_default(client, db_session, monkeypatch):
+    _make_user(db_session)
+    monkeypatch.delenv("COOKIE_SECURE", raising=False)
+    r = client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    assert r.status_code == 200
+    access = next(
+        c for c in r.headers.get_list("set-cookie") if c.startswith("access_token=")
+    )
+    assert "Secure" not in access
+
+
+# --- CSRF: double-submit токен (cookie + заголовок) для изменяющих маршрутов ---
+
+
+def test_login_sets_csrf_cookie_readable_by_js(client, db_session):
+    _make_user(db_session)
+    r = client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    assert client.cookies.get("csrf_token") is not None
+    csrf_cookie = next(
+        c for c in r.headers.get_list("set-cookie") if c.startswith("csrf_token=")
+    )
+    # JS должен прочитать токен, чтобы отправить его в заголовке -> не HttpOnly
+    assert "HttpOnly" not in csrf_cookie
+
+
+def test_logout_without_csrf_header_is_403(client, db_session):
+    _make_user(db_session)
+    client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    r = client.post("/auth/logout")
+    assert r.status_code == 403
+    # сессия не очищена — пользователь всё ещё авторизован
+    assert client.get("/auth/me").status_code == 200
+
+
+def test_logout_csrf_token_mismatch_is_403(client, db_session):
+    _make_user(db_session)
+    client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    r = client.post("/auth/logout", headers={"X-CSRF-Token": "not-the-real-token"})
+    assert r.status_code == 403
+
+
+def test_logout_clears_csrf_cookie_too(client, db_session):
+    _make_user(db_session)
+    client.post("/auth/login", json={"email": "u@e.com", "password": "pw"})
+    csrf = client.cookies.get("csrf_token")
+    client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
+    assert client.cookies.get("csrf_token") is None
