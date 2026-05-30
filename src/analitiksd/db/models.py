@@ -3,7 +3,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,7 +21,7 @@ from analitiksd.db.base import Base
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(
@@ -51,6 +59,9 @@ class UserRole(Base):
 
 class DataSource(Base):
     __tablename__ = "data_sources"
+    __table_args__ = (
+        CheckConstraint("type IN ('mcp', 'sql')", name="ck_data_sources_type"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(16))  # mcp | sql
@@ -72,10 +83,14 @@ class RoleSource(Base):
 
 class ReportPerm(Base):
     __tablename__ = "report_perms"
+    __table_args__ = (
+        UniqueConstraint("report_id", "role_id", name="uq_report_perms_report_role"),
+        CheckConstraint("access IN ('view', 'edit')", name="ck_report_perms_access"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     # FK на reports появится миграцией в Плане 4; пока просто индексированный id
     report_id: Mapped[int] = mapped_column(index=True)
     role_id: Mapped[int] = mapped_column(
-        ForeignKey("roles.id", ondelete="CASCADE")
+        ForeignKey("roles.id", ondelete="CASCADE"), index=True
     )
     access: Mapped[str] = mapped_column(String(8))  # view | edit
