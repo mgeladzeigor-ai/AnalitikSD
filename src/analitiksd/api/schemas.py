@@ -1,12 +1,14 @@
 # src/analitiksd/api/schemas.py
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    # ограничиваем длину до bcrypt-лимита (72 байта) — не пускаем огромные тела
+    # на неаутентифицированный /auth/login и отсекаем заведомо невалидное.
+    password: str = Field(min_length=1, max_length=72)
 
 
 class UserOut(BaseModel):

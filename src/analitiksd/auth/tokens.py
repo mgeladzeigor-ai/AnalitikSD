@@ -25,7 +25,10 @@ def decode_access_token(token: str) -> str:
     """
     settings = get_settings()
     payload = jwt.decode(
-        token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        token,
+        settings.jwt_secret,
+        algorithms=[settings.jwt_algorithm],
+        options={"require": ["exp", "sub"]},  # токен без срока жизни не принимаем
     )
     subject = payload.get("sub")
     if subject is None:
