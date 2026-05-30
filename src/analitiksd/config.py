@@ -17,6 +17,11 @@ class Settings:
     # Флаг Secure на auth/CSRF-cookie. False для локальных HTTP-прогонов (MVP),
     # в проде (HTTPS) выставляется COOKIE_SECURE=true.
     cookie_secure: bool = False
+    # Опциональные настройки агента/источника (нужны только для реальных вызовов;
+    # ядро тестируется на моках). Секреты — только из окружения.
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    bitrix_webhook_url: str | None = None
 
 
 def get_settings() -> Settings:
@@ -27,4 +32,7 @@ def get_settings() -> Settings:
         jwt_algorithm=os.environ.get("JWT_ALGORITHM", "HS256"),
         jwt_expire_minutes=int(os.environ.get("JWT_EXPIRE_MINUTES", "480")),
         cookie_secure=os.environ.get("COOKIE_SECURE", "false").lower() in _TRUE_VALUES,
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
+        bitrix_webhook_url=os.environ.get("BITRIX_WEBHOOK_URL"),
     )
