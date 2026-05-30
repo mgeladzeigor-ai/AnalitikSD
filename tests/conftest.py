@@ -14,7 +14,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg2://localhost/analitiksd_test"
 )
-os.environ.setdefault("JWT_SECRET", "test-secret-key")
+os.environ.setdefault("JWT_SECRET", "test-secret-key-at-least-32-bytes!!")
 
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
