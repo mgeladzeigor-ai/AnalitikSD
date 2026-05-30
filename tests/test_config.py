@@ -1,4 +1,6 @@
 # tests/test_config.py
+import pytest
+
 from analitiksd.config import Settings, get_settings
 
 
@@ -17,6 +19,5 @@ def test_settings_from_env(monkeypatch):
 def test_settings_missing_required_raises(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("JWT_SECRET", raising=False)
-    import pytest
     with pytest.raises(KeyError):
         get_settings()
