@@ -652,8 +652,11 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Тестовая БД и секрет задаются ДО импорта приложения (config читает окружение).
 # ПРИНУДИТЕЛЬНО направляем приложение на тест-БД (даже если в shell экспортирован
@@ -673,26 +676,41 @@ def _engine():
     subprocess.run(
         ["alembic", "upgrade", "head"],
         check=True,
+        cwd=_PROJECT_ROOT,  # чтобы alembic нашёл alembic.ini независимо от cwd запуска
         env={**os.environ},
     )
-    engine = create_engine(os.environ["DATABASE_URL"], future=True)
+    engine = create_engine(os.environ["DATABASE_URL"])
     yield engine
     engine.dispose()
 
 
 @pytest.fixture
 def db_session(_engine):
-    """Каждый тест — во вложенной транзакции с откатом (изоляция + скорость)."""
+    """Каждый тест — во внешней транзакции с откатом (изоляция + скорость).
+
+    join_transaction_mode="create_savepoint": session.commit() в коде приложения
+    освобождает и заново создаёт SAVEPOINT (объекты остаются привязанными, без
+    DetachedInstanceError), а внешний trans.rollback() в teardown откатывает всё.
+    """
     connection = _engine.connect()
     trans = connection.begin()
-    factory = sessionmaker(bind=connection, expire_on_commit=False, future=True)
+    factory = sessionmaker(
+        bind=connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
     session: Session = factory()
     try:
         yield session
     finally:
-        session.close()
-        trans.rollback()
-        connection.close()
+        # вложенные try/finally — чтобы сбой одного шага не оставил ресурс незакрытым
+        try:
+            session.close()
+        finally:
+            try:
+                trans.rollback()
+            finally:
+                connection.close()
 ```
 
 - [ ] **Step 3: Проверить, что conftest применяет миграции (sanity-тест)**
