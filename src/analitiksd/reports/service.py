@@ -52,6 +52,7 @@ def list_accessible_reports(session: Session, user_id: int) -> list[Report]:
         .join(ReportPerm, Report.id == ReportPerm.report_id)
         .join(UserRole, UserRole.role_id == ReportPerm.role_id)
         .where(UserRole.user_id == user_id)
+        .distinct()  # несколько ролей могут давать право на один отчёт
     ).scalars().all()
     by_id = {r.id: r for r in [*owned, *shared]}
     return sorted(by_id.values(), key=lambda r: r.id)
