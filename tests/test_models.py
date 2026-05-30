@@ -15,6 +15,7 @@ def test_all_tables_registered():
     assert tables == {
         "users", "roles", "user_roles",
         "data_sources", "role_sources", "report_perms",
+        "reports", "report_runs",
     }
 
 
@@ -60,3 +61,25 @@ def test_report_perm_constraints():
 def test_data_source_type_check_constraint():
     constraints = {c.name for c in DataSource.__table__.constraints}
     assert "ck_data_sources_type" in constraints
+
+
+def test_reports_tables_registered():
+    from analitiksd.db.base import Base
+    assert "reports" in Base.metadata.tables
+    assert "report_runs" in Base.metadata.tables
+
+
+def test_report_columns():
+    from analitiksd.db.models import Report
+    cols = {c.name for c in Report.__table__.columns}
+    assert {"id", "name", "description", "owner_id", "source", "recipe",
+            "params", "is_refreshable", "created_at", "updated_at"} <= cols
+
+
+def test_report_run_columns_and_status_check():
+    from analitiksd.db.models import ReportRun
+    cols = {c.name for c in ReportRun.__table__.columns}
+    assert {"id", "report_id", "started_at", "finished_at", "status",
+            "row_count", "result", "error", "triggered_by"} <= cols
+    constraints = {c.name for c in ReportRun.__table__.constraints}
+    assert "ck_report_runs_status" in constraints

@@ -61,3 +61,8 @@ def db_session(_engine):
                 trans.rollback()
             finally:
                 connection.close()
+
+
+@pytest.fixture
+def db(db_session):
+    return db_session
