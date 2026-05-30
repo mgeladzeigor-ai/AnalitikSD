@@ -109,3 +109,34 @@ def test_refresh_records_error_and_keeps_last_ok(db):
     # последний успешный результат не затёрт
     assert service.latest_ok_run(db, report.id).id == ok.id
     assert service.latest_run(db, report.id).id == bad.id
+
+
+def test_refresh_resolves_params_with_overrides(db):
+    owner = _user(db, "o7@x")
+    recipe = {
+        "version": 1, "source": "bitrix",
+        "steps": [{"type": "tool_call", "tool": "crm_deal_list",
+                   "params": {"filter": {">=CLOSEDATE": "{{period.from}}"}, "select": ["ID"]}}],
+        "transform": [], "presentation": {"type": "table", "columns": ["ID"]},
+    }
+    params = {"period": {"type": "date_range",
+                         "default": {"from": "2026-05-01", "to": "2026-05-31"}}}
+    report = service.create_report(db, owner_id=owner.id, name="R", description="",
+                                   source="bitrix", recipe=recipe, params=params)
+
+    class CapturingRunner:
+        def __init__(self):
+            self.steps = []
+
+        def fetch(self, step):
+            self.steps.append(step)
+            return []
+
+    runner = CapturingRunner()
+    run = service.refresh_report(
+        db, report, runner, triggered_by=owner.id,
+        overrides={"period": {"from": "2026-06-01", "to": "2026-06-30"}},
+    )
+    assert run.status == "ok"
+    # override периода подставился в шаг рецепта
+    assert runner.steps[0].params["filter"][">=CLOSEDATE"] == "2026-06-01"
