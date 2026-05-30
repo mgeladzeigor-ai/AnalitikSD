@@ -230,15 +230,30 @@ class BitrixRestRunner:
         while True:
             payload = {**step.params, "start": start}
             response = self._http.post(f"{self._webhook_url}/{method}", json=payload)
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
-            rows.extend(data.get("result", []))
+            # Битрикс отдаёт result=false при нуле записей -> приводим к [].
+            rows.extend(data.get("result") or [])
             next_start = data.get("next")
-            if next_start is None:
+            # next отсутствует -> конец; защита от зацикливания, если сервер вернул
+            # не возрастающий next (например 0) на кривом ответе.
+            if next_start is None or next_start <= start:
                 break
             start = next_start
         return rows
+
+    def _raise_for_status(self, response: httpx.Response) -> None:
+        """raise_for_status, но без утечки секретного токена вебхука в сообщение/лог."""
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            scrubbed = str(exc).replace(self._webhook_url, "<webhook>")
+            raise httpx.HTTPStatusError(
+                scrubbed, request=exc.request, response=exc.response
+            ) from None
 ```
+
+> Тесты также покрывают: одностраничный ответ, `result=false` (ноль записей), не возрастающий `next` (без зацикливания) и скрабинг токена в сообщении ошибки.
 
 - [ ] **Step 4: Запустить — убедиться, что проходит**
 
