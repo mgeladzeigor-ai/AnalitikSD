@@ -63,3 +63,25 @@ def test_report_access_levels(db_session):
     user, _, _ = _seed(db_session)
     assert report_access_levels(db_session, user.id, 7) == ["edit"]
     assert report_access_levels(db_session, user.id, 999) == []
+
+
+def test_queries_isolated_per_user(db_session):
+    # другой пользователь без ролей не видит чужих источников/прав
+    _user, inactive, _analyst = _seed(db_session)
+    assert accessible_source_keys(db_session, inactive.id) == set()
+    assert report_access_levels(db_session, inactive.id, 7) == []
+    assert role_names(db_session, inactive.id) == []
+
+
+def test_report_access_levels_unions_multiple_roles(db_session):
+    # две роли пользователя дают разные уровни на один отчёт -> объединение
+    user, _inactive, analyst = _seed(db_session)  # analyst даёт edit на отчёт 7
+    viewer = Role(name="viewer")
+    db_session.add(viewer)
+    db_session.flush()
+    db_session.add_all([
+        UserRole(user_id=user.id, role_id=viewer.id),
+        ReportPerm(report_id=7, role_id=viewer.id, access="view"),
+    ])
+    db_session.flush()
+    assert set(report_access_levels(db_session, user.id, 7)) == {"view", "edit"}

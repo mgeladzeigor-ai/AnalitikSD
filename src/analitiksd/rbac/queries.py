@@ -19,10 +19,14 @@ def accessible_source_keys(session: Session, user_id: int) -> set[str]:
 
 
 def report_access_levels(session: Session, user_id: int, report_id: int) -> list[str]:
-    """Уровни доступа (view/edit), выданные ролям пользователя на конкретный отчёт."""
+    """Уровни доступа (view/edit), выданные ролям пользователя на конкретный отчёт.
+
+    distinct(): разные роли могут давать один уровень — возвращаем уникальные значения.
+    """
     rows = session.execute(
         select(ReportPerm.access)
         .join(UserRole, UserRole.role_id == ReportPerm.role_id)
         .where(UserRole.user_id == user_id, ReportPerm.report_id == report_id)
+        .distinct()
     ).scalars().all()
     return list(rows)
