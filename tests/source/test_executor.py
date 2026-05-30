@@ -1,4 +1,6 @@
 # tests/source/test_executor.py
+import pytest
+
 from analitiksd.recipe.models import Recipe
 from analitiksd.source.executor import execute_recipe
 
@@ -67,3 +69,37 @@ def test_execute_without_placeholders_needs_no_values():
     runner = FakeRunner({"crm_deal_list": [{"ID": 1}]})
     out = execute_recipe(recipe, runner)
     assert out == [{"ID": 1}]
+
+
+def test_execute_concatenates_rows_across_steps():
+    raw = {
+        "version": 1, "source": "bitrix",
+        "steps": [
+            {"type": "tool_call", "tool": "crm_deal_list", "params": {"select": ["ID"]}},
+            {"type": "tool_call", "tool": "crm_lead_list", "params": {"select": ["ID"]}},
+        ],
+        "transform": [],
+        "presentation": {"type": "table", "columns": ["ID"]},
+    }
+    recipe = Recipe.model_validate(raw)
+    runner = FakeRunner({"crm_deal_list": [{"ID": 1}], "crm_lead_list": [{"ID": 2}]})
+    out = execute_recipe(recipe, runner)
+    assert out == [{"ID": 1}, {"ID": 2}]
+
+
+def test_execute_empty_steps_returns_empty():
+    raw = {
+        "version": 1, "source": "bitrix", "steps": [],
+        "transform": [], "presentation": {"type": "table", "columns": ["ID"]},
+    }
+    recipe = Recipe.model_validate(raw)
+    runner = FakeRunner({})
+    assert execute_recipe(recipe, runner) == []
+
+
+def test_execute_missing_placeholder_value_raises_keyerror():
+    # контракт для Плана 4: плейсхолдер без значения -> KeyError, не тихая подмена
+    recipe = Recipe.model_validate(RECIPE_RAW)
+    runner = FakeRunner({"crm_deal_list": SOURCE_ROWS})
+    with pytest.raises(KeyError):
+        execute_recipe(recipe, runner, values={})
