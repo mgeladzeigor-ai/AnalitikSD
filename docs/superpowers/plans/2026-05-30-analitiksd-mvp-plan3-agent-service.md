@@ -782,7 +782,7 @@ class AnthropicProvider:
         if block is None:
             return CannotBuild("модель не вызвала инструмент")
         if block.name == "cannot_build":
-            reason = block.input.get("reason", "вопрос невыразим рецептом")
+            reason = (block.input or {}).get("reason", "вопрос невыразим рецептом")
             return CannotBuild(reason)
         try:
             return Recipe.model_validate(block.input)
