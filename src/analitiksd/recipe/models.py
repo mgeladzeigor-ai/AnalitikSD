@@ -62,7 +62,7 @@ class ComputedOp(BaseModel):
 
 class LimitOp(BaseModel):
     op: Literal["limit"]
-    n: int
+    n: int = Field(ge=0)  # n<0 дал бы rows[:n] = тихое отбрасывание строк
 
 
 Transform = Annotated[
@@ -78,7 +78,7 @@ class Presentation(BaseModel):
 
 
 class Recipe(BaseModel):
-    version: int = 1
+    version: Literal[1] = 1  # MVP знает только v1; чужие версии не прогоняем
     source: str
     steps: list[ToolCallStep]
     transform: list[Transform] = Field(default_factory=list)

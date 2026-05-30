@@ -117,3 +117,27 @@ def test_limit():
     t = [LimitOp(op="limit", n=2)]
     out = apply_transforms(ROWS, t)
     assert [r["id"] for r in out] == [1, 2]
+
+
+def test_computed_field_named_like_float_is_not_literal():
+    # колонка с именем "inf" должна читаться как поле, а не как float('inf')
+    rows = [{"inf": 5, "x": 2}]
+    t = [ComputedOp(op="computed", **{"as": "r"}, left="inf", operator="+", right="x")]
+    out = apply_transforms(rows, t)
+    assert out[0]["r"] == 7  # 5 + 2, а не inf
+
+
+def test_computed_scientific_token_is_treated_as_field_not_literal():
+    # "1e3" не считаем числовым литералом (неоднозначно) -> трактуем как имя поля
+    rows = [{"a": 10}]
+    t = [ComputedOp(op="computed", **{"as": "r"}, left="a", operator="*", right="1e3")]
+    out = apply_transforms(rows, t)
+    assert out[0]["r"] is None  # поля "1e3" нет -> операнд None -> результат None
+
+
+def test_computed_nan_token_is_not_literal():
+    # "nan" как литерал сломал бы детерминизм (nan != nan) -> только поле
+    rows = [{"a": 10}]
+    t = [ComputedOp(op="computed", **{"as": "r"}, left="a", operator="+", right="nan")]
+    out = apply_transforms(rows, t)
+    assert out[0]["r"] is None

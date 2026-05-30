@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import re
 from typing import Any
+
+# Числовой литерал в computed — только целое/десятичное (опц. знак).
+# НЕ принимаем inf/nan/научную нотацию: inf/nan ломают детерминизм (nan != nan),
+# а неоднозначные токены не должны молча подменять имя поля числом.
+_NUMERIC_LITERAL = re.compile(r"^-?\d+(\.\d+)?$")
 
 from analitiksd.recipe.models import (
     AggregateOp,
@@ -133,11 +139,10 @@ def _sort(rows: list[dict[str, Any]], keys: list[SortKey]) -> list[dict[str, Any
 
 
 def _operand(row: dict[str, Any], token: str) -> Any:
-    try:
+    if _NUMERIC_LITERAL.match(token):
         num = float(token)
         return int(num) if num.is_integer() else num
-    except ValueError:
-        return row.get(token)
+    return row.get(token)
 
 
 def _computed(rows: list[dict[str, Any]], t: ComputedOp) -> list[dict[str, Any]]:
