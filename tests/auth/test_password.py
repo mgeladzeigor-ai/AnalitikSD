@@ -31,3 +31,16 @@ def test_verify_rejects_empty_against_real_hash():
 def test_verify_rejects_malformed_hash():
     # битый/некорректный хеш -> False, без исключения наружу
     assert verify_password("secret123", "not-a-bcrypt-hash") is False
+
+
+def test_hash_rejects_password_over_72_bytes():
+    # явная ValueError вместо сырой ошибки bcrypt / 500 в будущем flow регистрации
+    import pytest
+
+    with pytest.raises(ValueError):
+        hash_password("a" * 73)
+
+
+def test_hash_accepts_exactly_72_bytes():
+    h = hash_password("a" * 72)
+    assert verify_password("a" * 72, h) is True
